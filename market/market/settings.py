@@ -17,7 +17,7 @@ NEWSPIDER_MODULE = 'market.spiders'
 #USER_AGENT = 'market (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
@@ -42,29 +42,33 @@ ROBOTSTXT_OBEY = True
 #   'Accept-Language': 'en',
 #}
 
+RANDOM_UA_TYPE = 'random'
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
-#SPIDER_MIDDLEWARES = {
+SPIDER_MIDDLEWARES = {
 #    'market.middlewares.MarketSpiderMiddleware': 543,
-#}
+#    'market.middlewares.RandomUserAgentMiddlware': 544,
+}
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
+DOWNLOADER_MIDDLEWARES = {
 #    'market.middlewares.MarketDownloaderMiddleware': 543,
-#}
+#    'market.middlewares.RandomUserAgentMiddlware': 544,
+
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
-#EXTENSIONS = {
+EXTENSIONS = {
 #    'scrapy.extensions.telnet.TelnetConsole': None,
-#}
+}
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
+ITEM_PIPELINES = {
 #    'market.pipelines.MarketPipeline': 300,
-#}
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
