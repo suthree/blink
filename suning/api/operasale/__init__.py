@@ -1,0 +1,2 @@
+from suning.api.operasale.AgentrechargeAddRequest import AgentrechargeAddRequest
+from suning.api.operasale.AgentrechargeGetRequest import AgentrechargeGetRequest
