@@ -1,15 +1,16 @@
 from scrapy_redis.spiders import RedisSpider
 import requests
+import scrapy
 from .constants import proxies
-
-class BaseSpider(RedisSpider):
-
+from fake_useragent import UserAgent
+ua = UserAgent()
+class BaseSpider(scrapy.Spider):
     def get_result(self, method, url, kwargs):
-        # headers = kwargs.get("headers")
-        # if headers:
-        #     headers["User-Agent"] = ua.random
-        # else:
-        #     headers = {"User-Agent": ua.random}
+        headers = kwargs.get("headers")
+        if headers:
+            headers["User-Agent"] = ua.random
+        else:
+            headers = {"User-Agent": ua.random}
         response = requests.request(method, url, proxies=proxies, **kwargs)
         try:
             result = response.json()
@@ -30,6 +31,7 @@ class BaseSpider(RedisSpider):
         """        
         pass
 
+    
 
 class MallSpider(BaseSpider):
     """

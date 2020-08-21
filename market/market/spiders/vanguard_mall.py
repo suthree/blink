@@ -1,12 +1,11 @@
 import json
 
-import scrapy
-
 from ..items import MarketItem
 from .base import MallSpider
+from .utils import get_range_times
 
 
-class VanguardMallSpider(scrapy.Spider):
+class VanguardMallSpider(MallSpider):
     name = 'vanguard_mall'
     allowed_domains = ['crv.com']
     start_urls = ['http://app.crv.com.cn/']
@@ -33,64 +32,39 @@ class VanguardMallSpider(scrapy.Spider):
     def start_requests(self):
         # stores = self.get_task()
         stores = ['29']
+        for store_id in stores:
+            all_cates = self.get_cates(store_id)
+            for cat1_id, cat1_name, cat2_id, cat2_name in all_cates:
+                cate_name = "_".join([cat1_name, cat2_name])
+                total_count = self.get_products(store_id, cat2_id, cate_name)
+                if total_count:
+                    times = get_range_times(total_count, self.page_size)
+                    for i in range(2, times):
+                        self.get_products(store_id, cat2_id, cate_name, i)
+      
+    def get_cates(self, store_id):
         params = {"id": 1, "depth": 1, "targetCategoryIds": "all"}
         cate_url = self.cate_url + f"?param={json.dumps(params)}"
-        for store_id in stores:
-            kwargs = {
-                'headers': {"subsiteId": str(store_id)},
-                'meta': {"store_id": store_id}
-            }
-            yield scrapy.Request(cate_url, self.get_cates, **kwargs)
-      
-    def get_cates(self, response):
-        result = json.loads(response.text)
-        store_id = response.meta['store_id']
+        kwargs = {
+            'headers': {"subsiteId": str(store_id)},
+            # 'meta': {"store_id": store_id}
+        }
+        result = self.get_result(cate_url, 'GET', **kwargs)
         if result.get("stateCode") != 0:
             return
         data = result.get("data", [])
+        all_cates = []
         for item in data[:1]:
-            # cat1_id = item.get("id")
+            cat1_id = item.get("id")
             cat1_name = item.get("name")
             childs = item.get("subCategories", [])
             for child in childs:
                 cat2_id = child.get("id")
                 cat2_name = child.get("name")
-                cate_name = "_".join([cat1_name, cat2_name])
-                print(cate_name)
-                page = 1
-                param = {
-                    "virtualCategoryId": [cat2_id],
-                    "order": 0,
-                    "page": page,
-                    "pageCount": self.page_size,
-                    # "stock": stock,
-                }
-                kwargs = {
-                    'headers': {
-                        "subsiteId": str(store_id),
-                        # "Content-Type": "application/x-www-form-urlencoded",
-                        'Content-Type': 'application/json'
-                    },
-                    'meta': {
-                        "page": page,
-                        "cat_id": cat2_id,
-                        "cat_name": cate_name,
-                        "store_id": store_id,
-                    },
-                    'method': "POST",
-                    # "data": f"param={json.dumps(param)}",
-                    # "body": json.dumps({'param': param})
-                    # "body":  f"param={json.dumps(param)}"
-                    # "body":  json.dumps(param)
-                    "param": param
-                }
-                yield scrapy.Request(
-                    self.product_url,
-                    self.parse_products,
-                    **kwargs,
-                )
-                # self.get_products(store_id, cat2_id, cate_name)
-
+                cate_info = [cat1_id, cat1_name, cat2_id, cat2_name]
+                all_cates.append(cate_info)
+        return all_cates
+                
     def get_products(self, store_id, cat_id, cate_name, page=1, stock=1):
         param = {
             "virtualCategoryId": [cat_id],
@@ -107,27 +81,18 @@ class VanguardMallSpider(scrapy.Spider):
             'meta': {
                 "page": page,
                 "cat_id": cat_id,
-                "cat_name": cat_name,
+                "cat_name": cate_name,
                 "store_id": store_id,
             },
             'method': "POST",
             "data": f"param={json.dumps(param)}",
         }
-        yield scrapy.Request(
-            self.product_url,
-            self.parse_products,
-            **kwargs,
-        )
+        result = self.get_result(self.product_url, 'POST', **kwargs)
+        self.parse_products(result, cate_name)
 
-    def parse_products(self, response):
-        result = json.loads(response.text)
-        print(result)
+    def parse_products(self, result, cate_name):
         if result.get("stateCode") != 0:
             return 0
-        meta = response.meta
-        cat_name = meta['cat_name']
-        page = meta['page']
-
         products = result.get("data", {}).get("items", [])
         total_count = result.get("data", {}).get("total", 0)
         for item in products:
@@ -161,7 +126,7 @@ class VanguardMallSpider(scrapy.Spider):
                 image_url=item.get("pic"),
                 price=price,
                 price_orig=price_orig,
-                category=cat_name,
+                category=cate_name,
                 brand=brand,
                 unit=spec,
                 sales=sales,
@@ -171,7 +136,4 @@ class VanguardMallSpider(scrapy.Spider):
             )
             print(product_info)
             yield product_info
-
-        if total_count > page * self.page_size:
-            meta['page'] = page + 1
-            self.get_products(**meta)
+        return total_count    

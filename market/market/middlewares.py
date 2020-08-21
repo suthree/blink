@@ -117,6 +117,4 @@ class RandomUserAgentMiddlware(object):
     def process_request(self, request, spider):
         def get_ua():
             return getattr(self.ua, self.ua_type)
-        temp_ua = get_ua()
-        print(temp_ua)
-        request.headers.setdefault('User_Agent', temp_ua)
+        request.headers.setdefault('User_Agent', get_ua())
