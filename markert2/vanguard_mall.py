@@ -1,13 +1,20 @@
+
+
 import json
 
-import scrapy
-
-from ..items import MarketItem
-from .base import MallSpider
-from .utils import get_range_times
+from pyspider.libs.base_handler import BaseHandler
 
 
-class VanguardMallSpider(MallSpider):
+def get_range_times(count, gap):
+    times, remainder = divmod(count, gap)
+    if remainder > 0 and times:
+        times += 2
+    else:
+        times = 1
+    return times
+    
+
+class VanguardMallSpider(BaseHandler):
     name = 'vanguard_mall'
     allowed_domains = ['crv.com']
     start_urls = ['http://app.crv.com.cn/']
@@ -15,46 +22,32 @@ class VanguardMallSpider(MallSpider):
     cate_url = f"{base_url}/category/list"
     product_url = f"{base_url}/product/search"
     page_size = 10
-    # headers = {
-        # "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15F79 MicroMessenger/7.0.8(0x17000820) NetType/WIFI Language/zh_CN miniProgram",
-        # "userId": "783449",
-        # "userSession": "AB443F511CDAD94E74542B34B01A9874",
-        # "channel": "weapp",
-        # "appVersion": "2.9.6",
-        # "Origin": "https://appres.crv.com.cn",
-        # "os": "weixin_mini",
-        # "subsiteId": "252",
-        # "Accept-Language": "zh-cn",
-        # "osVersion": "11.4",
-        # "unique": "custom-2020042716521056348824622903507453042",
-        # "Accept": "application/json, text/plain, */*",
-        # "appkey": "ef1fc57c13007e33",
-    # }
 
-    def start_requests(self):
+    # @every(minutes=24 * 60)
+    def on_start(self):
         # stores = self.get_task()
         stores = ['29']
         for store_id in stores:
             all_cates = self.get_cates(store_id)
             for cat1_id, cat1_name, cat2_id, cat2_name in all_cates:
                 cate_name = "_".join([cat1_name, cat2_name])
-                total_count, products = self.get_products(store_id, cat2_id, cate_name)
-                yield. scrapy.Pr
-                yield self.parse_products(products, cate_name)
+                total_count = self.get_products(store_id, cat2_id, cate_name)
                 if total_count:
                     times = get_range_times(total_count, self.page_size)
                     for i in range(2, times):
-                        _, products = self.get_products(store_id, cat2_id, cate_name, i)
-                        yield self.parse_products(products, cate_name)
-
-    def get_cates(self, store_id):
+                        self.get_products(store_id, cat2_id, cate_name, i)
+    
+    def get_cates(self, store_id, **kwargs):
         params = {"id": 1, "depth": 1, "targetCategoryIds": "all"}
         cate_url = self.cate_url + f"?param={json.dumps(params)}"
         kwargs = {
             'headers': {"subsiteId": str(store_id)},
-            # 'meta': {"store_id": store_id}
+            'meta': {"store_id": store_id}
         }
-        result = self.get_result('GET', cate_url,  kwargs)
+        return self.crawl(cate_url, kwargs, callback=self.parse_cates)
+
+    def parse_cates(self, response):
+        result = response.json()
         if result.get("stateCode") != 0:
             return
         data = result.get("data", [])
@@ -84,15 +77,17 @@ class VanguardMallSpider(MallSpider):
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             "data": f"param={json.dumps(param)}",
+            'cate_name':cate_name,
         }
-        result = self.get_result('POST', self.product_url, kwargs)
+        return self.crawl(self.product_url, kwargs, callback=self.parse_products)
+
+    def parse_products(self, response):
+        cate_name = response['cate_name']
+        result = response.json()
         if result.get("stateCode") != 0:
-            return 0, []
+            return 0
         products = result.get("data", {}).get("items", [])
         total_count = result.get("data", {}).get("total", 0)
-        return total_count, products
-
-    def parse_products(self, products, cate_name):
         for item in products:
             brand = item.get("brand")
             goods_id = item.get("defaultGoodsId")
@@ -110,7 +105,7 @@ class VanguardMallSpider(MallSpider):
 
             detail = item.get("goodsMVO", {})
             spec = detail.get("weight")
-            product_info = MarketItem()
+            # product_info = MarketItem()
             product_info = dict(
                 product_id=product_id,
                 product_name=item.get("name"),
@@ -126,4 +121,4 @@ class VanguardMallSpider(MallSpider):
                 sys_codes=str(sys_codes),
             )
             print(product_info)
-            yield product_info
+        return total_count
